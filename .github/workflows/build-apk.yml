@@ -19,19 +19,16 @@ jobs:
           rm -rf .buildozer
           rm -rf bin
 
-      - name: Pull Buildozer Docker image
+      - name: Pull official Kivy Buildozer Docker image
         run: |
           docker pull kivy/buildozer:latest
 
       - name: Build APK
         run: |
-          docker run --rm -i \
+          yes | docker run --rm -i \
             -v "${{ github.workspace }}:/home/user/hostcwd" \
             kivy/buildozer:latest \
-            bash -c "
-              pip install --no-cache-dir 'cython==0.29.34' &&
-              buildozer android debug
-            "
+            android debug
 
       - name: Check APK
         run: |
@@ -43,4 +40,5 @@ jobs:
         with:
           name: sms-attendance-apk
           path: bin/*.apk
+          if-no-files-found: error
           if-no-files-found: error
