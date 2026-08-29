@@ -23,7 +23,7 @@ jobs:
         run: |
           docker pull kivy/buildozer:latest
 
-      - name: Build APK
+      - name: Install Android SDK tools
         run: |
           docker run --rm -i \
             -v "${{ github.workspace }}:/home/user/hostcwd" \
