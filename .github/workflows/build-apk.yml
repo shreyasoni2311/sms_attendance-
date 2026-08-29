@@ -125,6 +125,23 @@ jobs:
         run: |
           cat buildozer.spec
           grep -n "^\[" buildozer.spec
+          - name: Prepare Buildozer Android SDK
+        run: |
+          SDK="$HOME/.buildozer/android/platform/android-sdk"
+
+          echo "Preparing Buildozer SDK: $SDK"
+
+          mkdir -p "$SDK/licenses"
+
+          yes | sdkmanager --sdk_root="$SDK" --licenses || true
+
+          sdkmanager --sdk_root="$SDK" \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;37.0.0"
+
+          echo "Buildozer SDK prepared."
+          ls -la "$SDK/build-tools/37.0.0"
 
       - name: Build APK
         run: |
