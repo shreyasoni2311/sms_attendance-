@@ -16,10 +16,10 @@ fullscreen = 0
 
 android.permissions = INTERNET,SEND_SMS
 
-android.api = 35
+android.api = 34
 android.minapi = 21
 
-android.archs = arm64-v8a, armeabi-v7a
+android.archs = arm64-v8a
 
 [buildozer]
 
