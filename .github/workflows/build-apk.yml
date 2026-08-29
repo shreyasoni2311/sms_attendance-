@@ -94,12 +94,12 @@ jobs:
 
       - name: Build APK
         env:
-         ANDROIDSDK: ${{ env.ANDROID_HOME }}
-         ANDROIDSDKROOT: ${{ env.ANDROID_HOME }}
-        ANDROIDAPI: "34"
-        ANDROIDMINAPI: "21"
-         run: |
-           buildozer -v android debug
+          ANDROIDSDK: ${{ env.ANDROID_HOME }}
+          ANDROIDSDKROOT: ${{ env.ANDROID_HOME }}
+          ANDROIDAPI: "34"
+          ANDROIDMINAPI: "21"
+        run: |
+          buildozer -v android debug
 
       - name: Find APK
         run: |
