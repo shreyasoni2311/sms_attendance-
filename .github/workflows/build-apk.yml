@@ -8,14 +8,13 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -26,79 +25,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git \
-            zip \
-            unzip \
-            wget \
-            curl \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev
-
-      - name: Install Android SDK
-        run: |
-          export ANDROID_HOME="$HOME/android-sdk"
-          export ANDROID_SDK_ROOT="$HOME/android-sdk"
-
-          mkdir -p "$ANDROID_HOME/cmdline-tools"
-
-          wget -q \
-            https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip \
-            -O /tmp/cmdline-tools.zip
-
-          unzip -q /tmp/cmdline-tools.zip \
-            -d "$ANDROID_HOME/cmdline-tools"
-
-          mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
-
-          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools/"* \
-             "$ANDROID_HOME/cmdline-tools/latest/"
-
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-          echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
-
-      - name: Create sdkmanager compatibility path
-        run: |
-          mkdir -p "$ANDROID_HOME/tools/bin"
-
-          ln -sf \
-            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "$ANDROID_HOME/tools/bin/sdkmanager"
-
-          ln -sf \
-            "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" \
-            "$ANDROID_HOME/tools/bin/avdmanager"
-
-          echo "sdkmanager location:"
-          which sdkmanager
-
-          echo "Compatibility sdkmanager:"
-          "$ANDROID_HOME/tools/bin/sdkmanager" --version
-
-      - name: Accept Android SDK licenses
-        run: |
-          yes | sdkmanager --licenses || true
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Install Android SDK packages
         run: |
+          yes | sdkmanager --licenses
+
           sdkmanager \
             "platform-tools" \
-            "platforms;android-35" \
+            "platforms;android-34" \
             "build-tools;35.0.0"
 
       - name: Verify Android SDK
@@ -106,33 +42,37 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
-          echo "sdkmanager:"
-          "$ANDROID_HOME/tools/bin/sdkmanager" --version
+          sdkmanager --list | head -100
 
-          echo "AIDL:"
-          find "$ANDROID_HOME/build-tools" \
-            -name aidl \
-            -type f \
-            -print
+          ls -la "$ANDROID_HOME/build-tools"
+          ls -la "$ANDROID_HOME/platforms"
+
+          test -f "$ANDROID_HOME/build-tools/35.0.0/aidl"
+          echo "AIDL found successfully"
 
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
-          pip install "cython==0.29.34"
-          pip install buildozer
+          pip install buildozer cython==0.29.37
 
-      - name: Clean previous Buildozer files
+      - name: Clean old Buildozer files
         run: |
           rm -rf .buildozer
           rm -rf bin
 
       - name: Build APK
+        env:
+          ANDROIDSDK: ${{ env.ANDROID_HOME }}
+          ANDROIDSDKROOT: ${{ env.ANDROID_HOME }}
+          ANDROIDAPI: "34"
+          ANDROIDMINAPI: "21"
+          ANDROIDNDK: ""
         run: |
           buildozer android debug
 
       - name: Check APK
         run: |
-          echo "APK files:"
+          echo "Checking for APK..."
           find bin -type f -name "*.apk" -print
 
       - name: Upload APK
