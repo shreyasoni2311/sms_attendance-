@@ -1,28 +1,236 @@
 name: Build Android APK
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout
+
+      # --------------------------------------------------
+      # 1. Checkout
+      # --------------------------------------------------
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build APK
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: stable
 
+      # --------------------------------------------------
+      # 2. Python 3.11
+      # --------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+
+      # --------------------------------------------------
+      # 3. Java 17
+      # --------------------------------------------------
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+
+      # --------------------------------------------------
+      # 4. Install system dependencies
+      # --------------------------------------------------
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            git \
+            zip \
+            unzip \
+            wget \
+            curl \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev
+
+
+      # --------------------------------------------------
+      # 5. Install Android SDK
+      # --------------------------------------------------
+      - name: Install Android SDK
+        run: |
+
+          export ANDROID_HOME="$HOME/android-sdk"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+
+          wget -q \
+            https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip \
+            -O /tmp/cmdline-tools.zip
+
+          unzip -q /tmp/cmdline-tools.zip \
+            -d "$ANDROID_HOME/cmdline-tools"
+
+          mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools/"* \
+             "$ANDROID_HOME/cmdline-tools/latest/"
+
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
+
+
+      # --------------------------------------------------
+      # 6. SDK compatibility path for Buildozer
+      # --------------------------------------------------
+      - name: Create SDK compatibility path
+        run: |
+
+          mkdir -p "$ANDROID_HOME/tools/bin"
+
+          ln -sf \
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "$ANDROID_HOME/tools/bin/sdkmanager"
+
+          ln -sf \
+            "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" \
+            "$ANDROID_HOME/tools/bin/avdmanager"
+
+          echo "sdkmanager:"
+          which sdkmanager
+
+          sdkmanager --version
+
+
+      # --------------------------------------------------
+      # 7. Accept Android licenses
+      # --------------------------------------------------
+      - name: Accept Android licenses
+        run: |
+
+          yes | sdkmanager --licenses || true
+
+
+      # --------------------------------------------------
+      # 8. Install Android packages
+      # --------------------------------------------------
+      - name: Install Android packages
+        run: |
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;35.0.0"
+
+          echo "Android SDK packages installed."
+
+
+      # --------------------------------------------------
+      # 9. Verify AIDL
+      # --------------------------------------------------
+      - name: Verify Android SDK
+        run: |
+
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+          echo "Build tools:"
+          ls -la "$ANDROID_HOME/build-tools"
+
+          echo "Platforms:"
+          ls -la "$ANDROID_HOME/platforms"
+
+          echo "Checking AIDL..."
+
+          test -f "$ANDROID_HOME/build-tools/35.0.0/aidl"
+
+          echo "AIDL found successfully."
+
+
+      # --------------------------------------------------
+      # 10. Install Buildozer
+      # --------------------------------------------------
+      - name: Install Buildozer
+        run: |
+
+          python -m pip install --upgrade pip
+
+          pip install \
+            buildozer \
+            cython==0.29.37
+
+
+      # --------------------------------------------------
+      # 11. Clean old files
+      # --------------------------------------------------
+      - name: Clean Buildozer
+        run: |
+
+          rm -rf .buildozer
+          rm -rf bin
+
+          echo "Clean complete."
+
+
+      # --------------------------------------------------
+      # 12. Check buildozer.spec
+      # --------------------------------------------------
+      - name: Check Buildozer configuration
+        run: |
+
+          echo "========== buildozer.spec =========="
+
+          cat buildozer.spec
+
+          echo "===================================="
+
+          echo "Checking sections..."
+
+          grep -n "^\[" buildozer.spec
+
+
+      # --------------------------------------------------
+      # 13. Build APK
+      # --------------------------------------------------
+      - name: Build APK
+        run: |
+
+          buildozer android debug
+
+
+      # --------------------------------------------------
+      # 14. Find APK
+      # --------------------------------------------------
+      - name: Find APK
+        run: |
+
+          echo "========== APK FILES =========="
+
+          find . -type f -name "*.apk" -print
+
+          echo "==============================="
+
+
+      # --------------------------------------------------
+      # 15. Upload APK
+      # --------------------------------------------------
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Smart-Attendance-APK
-          path: ${{ steps.buildozer.outputs.filename }}
+          name: smart-attendance-apk
+          path: bin/*.apk
+          if-no-files-found: error
