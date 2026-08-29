@@ -19,16 +19,19 @@ jobs:
           rm -rf .buildozer
           rm -rf bin
 
-      - name: Pull official Kivy Buildozer Docker image
+      - name: Pull Buildozer Docker image
         run: |
           docker pull kivy/buildozer:latest
 
       - name: Build APK
         run: |
-          yes | docker run --rm -i \
+          docker run --rm -i \
             -v "${{ github.workspace }}:/home/user/hostcwd" \
             kivy/buildozer:latest \
-            android debug
+            bash -c "
+              pip install --no-cache-dir 'cython==0.29.34' &&
+              buildozer android debug
+            "
 
       - name: Check APK
         run: |
