@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -28,6 +28,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             git \
             zip \
@@ -48,56 +49,147 @@ jobs:
       - name: Install Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android licenses
-        run: |
-          yes | sdkmanager --licenses || true
-
       - name: Install Android SDK packages
         run: |
+          yes | sdkmanager --licenses
+
           sdkmanager \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;35.0.0"
 
+      - name: Verify Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+          echo "SDK:"
+          ls -la "$ANDROID_HOME"
+
+          echo "Build Tools:"
+          ls -la "$ANDROID_HOME/build-tools"
+
+          echo "AIDL:"
+          ls -la "$ANDROID_HOME/build-tools/35.0.0/aidl"
+
+          test -f "$ANDROID_HOME/build-tools/35.0.0/aidl"
+
+          echo "AIDL OK"
+
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
-          pip install buildozer
-          pip install cython==0.29.37
 
-      - name: Clean old Buildozer files
+          pip install \
+            buildozer \
+            "cython==0.29.37"
+
+      - name: Configure Buildozer
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path("buildozer.spec")
+          text = p.read_text()
+
+          # Remove duplicate [buildozer] sections if they exist
+          lines = text.splitlines()
+          output = []
+          seen_buildozer = False
+          current = None
+
+          for line in lines:
+              stripped = line.strip()
+
+              if stripped.lower() == "[buildozer]":
+                  if seen_buildozer:
+                      current = "skip"
+                      continue
+                  seen_buildozer = True
+                  current = "buildozer"
+                  output.append(line)
+                  continue
+
+              if stripped.startswith("[") and stripped.endswith("]"):
+                  current = stripped.lower()
+
+              if current == "skip":
+                  if stripped.startswith("[") and stripped.endswith("]"):
+                      current = stripped.lower()
+                      output.append(line)
+                  continue
+
+              output.append(line)
+
+          text = "\n".join(output) + "\n"
+
+          # Ensure Buildozer uses the GitHub Actions Android SDK
+          if "android.sdk_path" in text:
+              import re
+              text = re.sub(
+                  r"^android\.sdk_path\s*=.*$",
+                  "android.sdk_path = " + "${ANDROID_HOME}",
+                  text,
+                  flags=re.MULTILINE
+              )
+          else:
+              text += "\n[app]\nandroid.sdk_path = ${ANDROID_HOME}\n"
+
+          # Force API 34
+          import re
+
+          if re.search(r"^android\.api\s*=", text, re.MULTILINE):
+              text = re.sub(
+                  r"^android\.api\s*=.*$",
+                  "android.api = 34",
+                  text,
+                  flags=re.MULTILINE
+              )
+          else:
+              text += "\nandroid.api = 34\n"
+
+          if re.search(r"^android\.minapi\s*=", text, re.MULTILINE):
+              text = re.sub(
+                  r"^android\.minapi\s*=.*$",
+                  "android.minapi = 21",
+                  text,
+                  flags=re.MULTILINE
+              )
+          else:
+              text += "android.minapi = 21\n"
+
+          # Prevent Buildozer from downloading/updating another SDK
+          if re.search(r"^android\.skip_update\s*=", text, re.MULTILINE):
+              text = re.sub(
+                  r"^android\.skip_update\s*=.*$",
+                  "android.skip_update = True",
+                  text,
+                  flags=re.MULTILINE
+              )
+          else:
+              text += "android.skip_update = True\n"
+
+          # Automatically accept SDK licenses
+          if re.search(r"^android\.accept_sdk_license\s*=", text, re.MULTILINE):
+              text = re.sub(
+                  r"^android\.accept_sdk_license\s*=.*$",
+                  "android.accept_sdk_license = True",
+                  text,
+                  flags=re.MULTILINE
+              )
+          else:
+              text += "android.accept_sdk_license = True\n"
+
+          p.write_text(text)
+          PY
+
+          echo "========== FINAL BUILDOZER SPEC =========="
+          cat buildozer.spec
+
+      - name: Clean Buildozer
         run: |
           rm -rf .buildozer
           rm -rf bin
-
-      - name: Prepare SDK for Buildozer
-        run: |
-          BUILD_SDK="$HOME/.buildozer/android/platform/android-sdk"
-
-          echo "Creating Buildozer SDK at:"
-          echo "$BUILD_SDK"
-
-          mkdir -p "$BUILD_SDK"
-
-          cp -r "$ANDROID_HOME/platforms" "$BUILD_SDK/"
-          cp -r "$ANDROID_HOME/build-tools" "$BUILD_SDK/"
-          cp -r "$ANDROID_HOME/platform-tools" "$BUILD_SDK/"
-
-          echo "Buildozer SDK contents:"
-          ls -la "$BUILD_SDK"
-          ls -la "$BUILD_SDK/build-tools"
-
-          echo "Checking AIDL:"
-          find "$BUILD_SDK/build-tools" -name aidl -type f -print
-
-          test -f "$BUILD_SDK/build-tools/35.0.0/aidl"
-
-          echo "AIDL FOUND SUCCESSFULLY"
-
-      - name: Check buildozer.spec
-        run: |
-          echo "========== BUILD0ZER SPEC =========="
-          cat buildozer.spec
 
       - name: Build APK
         env:
@@ -110,8 +202,12 @@ jobs:
 
       - name: Find APK
         run: |
-          echo "========== APK =========="
-          find . -type f -name "*.apk" -print
+          echo "========== APK FILES =========="
+
+          find . \
+            -type f \
+            -name "*.apk" \
+            -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
