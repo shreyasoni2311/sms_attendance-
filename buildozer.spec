@@ -23,7 +23,7 @@ android.archs = arm64-v8a
 
 android.skip_update = True
 android.accept_sdk_license = True
-android.sdk_path = ${ANDROID_HOME}
+
 
 
 [buildozer]
