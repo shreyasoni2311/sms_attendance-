@@ -142,6 +142,15 @@ jobs:
 
           echo "Buildozer SDK prepared."
           ls -la "$SDK/build-tools/37.0.0"
+          - name: Verify AIDL
+    run: |
+          echo "Android SDK: $ANDROID_HOME"
+          echo "AIDL files:"
+          find "$ANDROID_HOME/build-tools" -name aidl -type f -print
+
+          test -f "$ANDROID_HOME/build-tools/37.0.0/aidl"
+
+          echo "AIDL FOUND successfully!"
 
       - name: Build APK
         run: |
