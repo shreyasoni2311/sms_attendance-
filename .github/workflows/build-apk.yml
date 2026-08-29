@@ -8,60 +8,151 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
+      # --------------------------------------------------
+      # 1. Checkout source code
+      # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      # --------------------------------------------------
+      # 2. Setup Python
+      # --------------------------------------------------
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # --------------------------------------------------
+      # 3. Setup Java
+      # --------------------------------------------------
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # --------------------------------------------------
+      # 4. Install Linux dependencies
+      # --------------------------------------------------
       - name: Install system dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             git \
             zip \
             unzip \
             wget \
-            openjdk-17-jdk \
+            curl \
             autoconf \
             automake \
             libtool \
             pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
             cmake \
             libffi-dev \
-            libssl-dev
+            libssl-dev \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev
 
-      - name: Install Python dependencies
+      # --------------------------------------------------
+      # 5. Install Android Command Line Tools
+      # --------------------------------------------------
+      - name: Install Android SDK
+        run: |
+          export ANDROID_HOME="$HOME/android-sdk"
+          export ANDROID_SDK_ROOT="$HOME/android-sdk"
+
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+
+          wget -q \
+            https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip \
+            -O /tmp/cmdline-tools.zip
+
+          unzip -q /tmp/cmdline-tools.zip \
+            -d "$ANDROID_HOME/cmdline-tools"
+
+          mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools/"* \
+             "$ANDROID_HOME/cmdline-tools/latest/"
+
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
+
+      # --------------------------------------------------
+      # 6. Accept Android licenses
+      # --------------------------------------------------
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses
+
+      # --------------------------------------------------
+      # 7. Install Android SDK packages
+      # --------------------------------------------------
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      # --------------------------------------------------
+      # 8. Install Python build dependencies
+      # --------------------------------------------------
+      - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
           pip install "cython==0.29.34"
           pip install buildozer
 
-      - name: Accept Android SDK licenses
+      # --------------------------------------------------
+      # 9. Verify Android SDK
+      # --------------------------------------------------
+      - name: Verify Android SDK
         run: |
-          yes | sdkmanager --licenses || true
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
+          echo "Checking AIDL..."
+          find "$ANDROID_HOME/build-tools" -name aidl -type f -print
+
+          echo "Checking SDK packages..."
+          sdkmanager --list_installed
+
+      # --------------------------------------------------
+      # 10. Clean old Buildozer files
+      # --------------------------------------------------
       - name: Clean Buildozer
         run: |
           rm -rf .buildozer
           rm -rf bin
 
+      # --------------------------------------------------
+      # 11. Build APK
+      # --------------------------------------------------
       - name: Build APK
         run: |
-          yes | buildozer android debug
+          buildozer android debug
 
+      # --------------------------------------------------
+      # 12. Check APK
+      # --------------------------------------------------
       - name: Check APK
         run: |
+          echo "APK files:"
           find bin -type f -name "*.apk" -print
 
+      # --------------------------------------------------
+      # 13. Upload APK
+      # --------------------------------------------------
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
