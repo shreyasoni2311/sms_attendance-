@@ -19,8 +19,11 @@ android.permissions = INTERNET,SEND_SMS
 android.api = 34
 android.minapi = 21
 android.ndk = 28c
-android.accept_sdk_license = True
 android.archs = arm64-v8a
+
+android.skip_update = True
+android.accept_sdk_license = True
+android.sdk_path = ${ANDROID_HOME}
 
 
 [buildozer]
