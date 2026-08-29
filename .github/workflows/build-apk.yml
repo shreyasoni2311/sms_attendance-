@@ -118,7 +118,7 @@ jobs:
 
       - name: Clean Buildozer
         run: |
-          rm -rf .buildozer
+       
           rm -rf bin
 
       - name: Check Buildozer configuration
