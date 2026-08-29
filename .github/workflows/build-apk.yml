@@ -11,19 +11,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Get repository files
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build APK with official Kivy Buildozer
+      # 2. Clean old Buildozer cache
+      - name: Clean Buildozer cache
+        run: |
+          rm -rf .buildozer
+          rm -rf bin
+
+      # 3. Pull official Kivy Buildozer Docker image
+      - name: Pull Kivy Buildozer image
         run: |
           docker pull kivy/buildozer:latest
 
+      # 4. Build APK
+      - name: Build APK
+        run: |
           docker run --rm \
             -v "${{ github.workspace }}:/home/user/hostcwd" \
-            -v "${{ github.workspace }}/.buildozer:/home/user/.buildozer" \
             kivy/buildozer:latest \
             android debug
 
+      # 5. Show generated APK
+      - name: Check APK
+        run: |
+          echo "Generated APK files:"
+          find bin -type f -name "*.apk" -print
+
+      # 6. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
