@@ -70,8 +70,27 @@ jobs:
 
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
 
-      - name: Accept Android licenses
+      - name: Create sdkmanager compatibility path
+        run: |
+          mkdir -p "$ANDROID_HOME/tools/bin"
+
+          ln -sf \
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "$ANDROID_HOME/tools/bin/sdkmanager"
+
+          ln -sf \
+            "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" \
+            "$ANDROID_HOME/tools/bin/avdmanager"
+
+          echo "sdkmanager location:"
+          which sdkmanager
+
+          echo "Compatibility sdkmanager:"
+          "$ANDROID_HOME/tools/bin/sdkmanager" --version
+
+      - name: Accept Android SDK licenses
         run: |
           yes | sdkmanager --licenses || true
 
@@ -84,12 +103,17 @@ jobs:
 
       - name: Verify Android SDK
         run: |
-          echo "SDK: $ANDROID_HOME"
-          echo "Installed packages:"
-          sdkmanager --list_installed
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+          echo "sdkmanager:"
+          "$ANDROID_HOME/tools/bin/sdkmanager" --version
 
           echo "AIDL:"
-          find "$ANDROID_HOME/build-tools" -name aidl -type f -print
+          find "$ANDROID_HOME/build-tools" \
+            -name aidl \
+            -type f \
+            -print
 
       - name: Install Buildozer
         run: |
@@ -97,7 +121,7 @@ jobs:
           pip install "cython==0.29.34"
           pip install buildozer
 
-      - name: Clean previous build
+      - name: Clean previous Buildozer files
         run: |
           rm -rf .buildozer
           rm -rf bin
