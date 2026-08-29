@@ -23,7 +23,14 @@ jobs:
         run: |
           docker pull kivy/buildozer:latest
 
-      - name: Install Android SDK tools
+      - name: Accept Android SDK licenses
+        run: |
+          docker run --rm -i \
+            -v "${{ github.workspace }}:/home/user/hostcwd" \
+            kivy/buildozer:latest \
+            bash -c "yes | sdkmanager --licenses || true"
+
+      - name: Build APK
         run: |
           docker run --rm -i \
             -v "${{ github.workspace }}:/home/user/hostcwd" \
