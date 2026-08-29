@@ -41,4 +41,3 @@ jobs:
           name: sms-attendance-apk
           path: bin/*.apk
           if-no-files-found: error
-          if-no-files-found: error
